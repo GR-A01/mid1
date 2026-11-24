@@ -55,7 +55,7 @@ input[type=file]{display:none}
  </div>
 </section>
 <aside class="panel">
- <h2 class="section-title">تحليل المباراة</h2>\n <div class="analysis-box"><button class="primary" id="analyze">تحليل المباراة بمحرك Stockfish</button><div class="status" id="engineStatus">المحرك غير محمّل. يتطلب الاتصال بالإنترنت عند أول تشغيل.</div><div class="progress"><span id="progressBar"></span></div><div class="analysis-result" id="analysisResult">حمّل مباراة PGN ثم ابدأ التحليل.</div></div>
+ <h2 class="section-title">تحليل المباراة</h2> <div class="analysis-box"><button class="primary" id="analyze">تحليل المباراة بمحرك Stockfish</button><div class="status" id="engineStatus">المحرك غير محمّل. يتطلب الاتصال بالإنترنت عند أول تشغيل.</div><div class="progress"><span id="progressBar"></span></div><div class="analysis-result" id="analysisResult">حمّل مباراة PGN ثم ابدأ التحليل.</div></div>
  <div class="info-card">المحرك: <strong id="engine">Stockfish 19 Lite</strong></div>
  <div class="info-card">النقلة المعروضة: <strong id="current">بداية المباراة</strong></div>
  <h3 class="section-title">سجل النقلات</h3><div class="moves" id="moves">لم يتم تحميل مباراة بعد.</div>
@@ -64,7 +64,18 @@ input[type=file]{display:none}
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
-const game=new Chess();let history=[],cursor=0,selected=null;
+if(typeof Chess==='undefined'){
+ const fallback=document.getElementById('board');
+ const initial=[['♜','♞','♝','♛','♚','♝','♞','♜'],['♟','♟','♟','♟','♟','♟','♟','♟'],['','','','','','','',''],['','','','','','','',''],['','','','','','','',''],['','','','','','','',''],['♙','♙','♙','♙','♙','♙','♙','♙'],['♖','♘','♗','♕','♔','♗','♘','♖']];
+ fallback.innerHTML='';
+ initial.forEach((row,r)=>row.forEach((piece,c)=>{const cell=document.createElement('div');cell.className='square '+((r+c)%2?'dark':'light');cell.textContent=piece;fallback.appendChild(cell)}));
+ document.getElementById('status').textContent='جارٍ تحميل مكتبة قواعد الشطرنج... إذا بقيت هذه الرسالة، تحقق من الاتصال بالإنترنت.';
+ const retry=document.createElement('script');retry.src='https://cdn.jsdelivr.net/npm/chess.js@0.10.3/chess.min.js';
+ retry.onload=()=>location.reload();
+ retry.onerror=()=>{document.getElementById('status').textContent='تعذّر تحميل مكتبة الشطرنج. الرقعة ظاهرة، لكن استيراد PGN والتنقل يحتاجان اتصالًا بالمكتبة.'};
+ document.head.appendChild(retry);
+}else{
+ const game=new Chess();let history=[],cursor=0,selected=null;
 const board=document.getElementById('board'),statusEl=document.getElementById('status');
 const glyph={wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
 function render(){
@@ -176,5 +187,6 @@ async function analyzeGame(){
 document.getElementById('analyze').addEventListener('click',analyzeGame);
 render();
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+}
 </script>
 </body></html>
