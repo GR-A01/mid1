@@ -1,51 +1,96 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#101827"><title>KASHAFF | محلل الشطرنج</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827"><title>KASHAFF — محلل الشطرنج</title>
 <link rel="manifest" href="manifest.json">
 <style>
-:root{color-scheme:dark;--bg:#101827;--panel:#1b2738;--muted:#9aabc0;--gold:#e8bd62;--line:#34445a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f4f6fa;font-family:system-ui,Arial,sans-serif}
-header{padding:22px max(18px,calc((100% - 1050px)/2));border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
-.logo{width:42px;height:42px;border-radius:13px;background:var(--gold);color:#182235;display:grid;place-items:center;font-size:25px;font-weight:800}
-h1{font-size:22px;margin:0}header small{color:var(--muted)}
-main{max-width:1050px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:minmax(280px,520px) minmax(260px,1fr);gap:20px}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px}
-.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border:5px solid #26364b;border-radius:8px;overflow:hidden}
-.square{border:0;display:grid;place-items:center;font-size:clamp(25px,6vw,48px);cursor:pointer;color:#111827;padding:0}
-.light{background:#e8dfca}.dark{background:#78917e}.selected{outline:4px solid var(--gold);outline-offset:-4px}
-.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-button,.filelabel{background:#29394f;color:white;border:1px solid #465a74;border-radius:10px;padding:10px 13px;font:inherit;cursor:pointer}
-button.primary{background:var(--gold);color:#172235;border:0;font-weight:700}
-button:disabled{opacity:.4;cursor:not-allowed}
-.status{color:var(--muted);font-size:14px;margin:12px 0}
-.moves{min-height:120px;max-height:230px;overflow:auto;line-height:2;color:#dce5ef;white-space:pre-wrap}
-input[type=file]{display:none}.hint{color:var(--muted);font-size:13px;line-height:1.7}
-.metric{padding:12px;background:#121d2c;border-radius:12px;margin:10px 0}.metric strong{color:var(--gold)}
-@media(max-width:760px){main{grid-template-columns:1fr;margin:14px auto}header{padding:16px}}
-</style></head>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#141f30;--panel2:#1b2a40;--line:#2b3b52;--text:#f3f5f8;--muted:#9eacc0;--gold:#e7bd65;--light:#eee6d5;--dark:#78927f}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#243650 0,transparent 55%),var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+header{border-bottom:1px solid #26364b;background:#0e1726cc;padding:17px 20px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px}.logo{width:46px;height:46px;border-radius:14px;background:var(--gold);color:#172235;display:grid;place-items:center;font-size:28px}.brand h1{font-size:22px;margin:0;letter-spacing:.5px}.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+main{width:min(1120px,100%);margin:24px auto;padding:0 16px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(290px,.9fr);gap:18px;align-items:start}
+.panel{background:linear-gradient(160deg,#19273a,#121d2d);border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 14px 35px #0002}
+.board-wrap{width:min(100%,620px);margin:auto;padding:7px;background:#26364b;border-radius:13px;box-shadow:0 8px 22px #0003}
+.board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));aspect-ratio:1;overflow:hidden;border-radius:8px}
+.square{appearance:none;border:0;border-radius:0;margin:0;padding:0;min-width:0;min-height:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:"Arial Unicode MS",system-ui,sans-serif;font-size:clamp(22px,6.3vw,54px);line-height:1;color:#172333;touch-action:manipulation}
+.square.light{background:var(--light)}.square.dark{background:var(--dark)}.square.selected{box-shadow:inset 0 0 0 4px var(--gold);background-image:linear-gradient(#e7bd6540,#e7bd6540)}
+.square:focus-visible{outline:3px solid #f5d78e;outline-offset:-3px}
+.board-tools{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+button,.file-button{font:inherit;cursor:pointer;border:1px solid #40536d;background:#26374e;color:var(--text);border-radius:11px;padding:10px 14px;min-height:43px}
+button:active,.file-button:active{transform:translateY(1px)}button.primary{background:var(--gold);border-color:var(--gold);color:#172235;font-weight:750}button:disabled{opacity:.4;cursor:not-allowed}
+.section-title{font-size:17px;margin:0 0 12px}.muted{color:var(--muted)}.status{font-size:13px;color:var(--muted);margin:13px 2px 0;min-height:22px}
+.pgn-box{margin-top:17px;border-top:1px solid var(--line);padding-top:16px}.pgn-box label{display:block;font-weight:700;margin-bottom:8px}
+textarea{width:100%;min-height:145px;resize:vertical;background:#0c1625;color:var(--text);border:1px solid #3a4c64;border-radius:12px;padding:12px;font:14px/1.7 ui-monospace,monospace;direction:ltr;text-align:left;outline:none}
+textarea:focus{border-color:var(--gold)}.pgn-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.file-button{display:inline-flex;align-items:center}
+input[type=file]{display:none}
+.moves{max-height:270px;overflow:auto;background:#0d1726;border:1px solid #26374d;border-radius:12px;padding:12px;line-height:2;direction:ltr;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:#dce5ef}
+.info-card{background:#0e1928;border:1px solid #293a50;border-radius:13px;padding:13px;margin-bottom:14px}.info-card strong{color:var(--gold)}
+.note{font-size:13px;line-height:1.8;color:var(--muted);margin:13px 0 0}
+@media(max-width:760px){main{grid-template-columns:1fr;margin:14px auto;gap:13px}.panel{padding:13px;border-radius:17px}header{padding:13px 16px}.square{font-size:clamp(24px,8vw,46px)}.board-wrap{padding:5px}}
+</style>
+</head>
 <body>
-<header><div class="logo">♞</div><div><h1>KASHAFF</h1><small>محلل الشطرنج</small></div></header>
+<header><div class="brand"><div class="logo">♞</div><div><h1>KASHAFF</h1><p>مساحة تحليل مباريات الشطرنج</p></div></div><span class="muted" style="font-size:12px">نسخة تجريبية</span></header>
 <main>
-<section class="panel"><div id="board" class="board" aria-label="رقعة الشطرنج"></div>
-<div class="controls"><button id="start">البداية</button><button id="prev">السابق</button><button id="next">التالي</button><button id="end">النهاية</button></div>
-<div class="controls"><label class="filelabel" for="pgn">استيراد مباراة PGN</label><input id="pgn" type="file" accept=".pgn,.txt"></div>
-<p class="status" id="status">حمّل مباراة PGN أو ابدأ بتحريك القطع.</p></section>
-<aside class="panel"><h2>التحليل</h2><div class="metric">حالة المحرك: <strong id="engine">لم يتم تشغيل المحرك بعد</strong></div>
-<div class="metric">النقلة الحالية: <strong id="current">—</strong></div><h3>النقلات</h3><div class="moves" id="moves">لم تُحمّل أي مباراة بعد.</div>
-<p class="hint">هذه نسخة أولية من واجهة KASHAFF. سيتم تفعيل تقييم Stockfish وتصنيف الأخطاء بعد إضافة ملفات المحرك واختبار تشغيله في المتصفح.</p></aside>
+<section class="panel">
+ <div class="board-wrap"><div id="board" class="board" aria-label="رقعة الشطرنج"></div></div>
+ <div class="board-tools">
+  <button id="start" title="العودة للبداية">⏮ البداية</button><button id="prev">◀ السابق</button><button id="next">التالي ▶</button><button id="end">النهاية ⏭</button>
+ </div>
+ <p class="status" id="status">الصق مباراة PGN في المربع المجاور لتحميلها، أو حرّك القطع على الرقعة.</p>
+ <div class="pgn-box">
+  <label for="pgnText">استيراد مباراة PGN</label>
+  <textarea id="pgnText" spellcheck="false" placeholder='الصق نص المباراة هنا، مثال:
+[Event "Casual Game"]
+[White "Player 1"]
+[Black "Player 2"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6'></textarea>
+  <div class="pgn-actions"><button class="primary" id="loadPgn">تحميل المباراة</button><button id="clearPgn">مسح النص</button><label class="file-button" for="pgnFile">اختيار ملف PGN</label><input id="pgnFile" type="file" accept=".pgn,.txt,text/plain"></div>
+ </div>
+</section>
+<aside class="panel">
+ <h2 class="section-title">ملخص المباراة</h2>
+ <div class="info-card">المحرك: <strong id="engine">غير مفعّل بعد</strong></div>
+ <div class="info-card">النقلة المعروضة: <strong id="current">بداية المباراة</strong></div>
+ <h3 class="section-title">سجل النقلات</h3><div class="moves" id="moves">لم يتم تحميل مباراة بعد.</div>
+ <p class="note">هذه النسخة تصلح لعرض الرقعة والتنقل بين النقلات وتحميل PGN. تحليل Stockfish وتصنيف النقلات سيُضاف في مرحلة لاحقة بعد دمج المحرك واختباره.</p>
+</aside>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script>
 const game=new Chess();let history=[],cursor=0,selected=null;
 const board=document.getElementById('board'),statusEl=document.getElementById('status');
 const glyph={wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
-function render(){board.innerHTML='';const b=game.board();for(let r=0;r<8;r++)for(let c=0;c<8;c++){const sq=String.fromCharCode(97+c)+(8-r),p=b[r][c],el=document.createElement('button');el.className='square '+((r+c)%2?'dark':'light')+(selected===sq?' selected':'');el.textContent=p?glyph[p.color+p.type]:'';el.title=sq;el.onclick=()=>tap(sq);board.append(el)}
-document.getElementById('current').textContent=cursor?history[cursor-1]?.san||'—':'بداية المباراة';document.getElementById('moves').textContent=history.map((m,i)=>(i%2===0?Math.floor(i/2)+1+'. ':'')+m.san).join('  ')||'لا توجد نقلات';}
-function tap(sq){if(selected){let m=game.move({from:selected,to:sq,promotion:'q'});selected=null;if(m){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تنفيذ النقلة '+m.san;return}}selected=sq;render()}
-function go(n){game.reset();for(let i=0;i<n;i++)game.move(history[i]);cursor=n;render()}
+function render(){
+ board.innerHTML='';const b=game.board();
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  const sq=String.fromCharCode(97+c)+(8-r),p=b[r][c],el=document.createElement('button');
+  el.type='button';el.className='square '+((r+c)%2?'dark':'light')+(selected===sq?' selected':'');
+  el.textContent=p?glyph[p.color+p.type]:'';el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
+ }
+ document.getElementById('current').textContent=cursor?((Math.ceil(cursor/2))+((cursor%2)?'...':' .')+' '+history[cursor-1].san):'بداية المباراة';
+ document.getElementById('moves').textContent=history.length?formatMoves(history):'لم يتم تحميل مباراة بعد.';
+ document.getElementById('prev').disabled=cursor===0;document.getElementById('start').disabled=cursor===0;
+ document.getElementById('next').disabled=cursor===history.length;document.getElementById('end').disabled=cursor===history.length;
+}
+function formatMoves(h){let s='';for(let i=0;i<h.length;i++){if(i%2===0)s+=(Math.floor(i/2)+1)+'. ';s+=h[i].san+' ';if(i%2===1)s+='\n'}return s.trim()}
+function tap(sq){
+ if(selected){const m=game.move({from:selected,to:sq,promotion:'q'});selected=null;if(m){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تنفيذ النقلة '+m.san;return}}
+ const piece=game.get(sq);selected=piece?sq:null;render();
+}
+function go(n){game.reset();for(let i=0;i<n;i++)game.move(history[i]);cursor=n;selected=null;render()}
 document.getElementById('start').onclick=()=>go(0);document.getElementById('prev').onclick=()=>go(Math.max(0,cursor-1));document.getElementById('next').onclick=()=>go(Math.min(history.length,cursor+1));document.getElementById('end').onclick=()=>go(history.length);
-document.getElementById('pgn').onchange=async e=>{const f=e.target.files[0];if(!f)return;const t=await f.text();game.reset();if(game.load_pgn(t)){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تحميل المباراة بنجاح.'}else statusEl.textContent='تعذر قراءة الملف. تأكد أنه بصيغة PGN.'};
+function loadPgn(text){
+ const candidate=new Chess();const ok=candidate.load_pgn(text.trim());
+ if(!ok){statusEl.textContent='لم أتمكن من قراءة النص. تأكد من نسخ PGN كاملًا.';return false}
+ game.load(candidate.fen());history=candidate.history({verbose:true});cursor=history.length;selected=null;render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
+}
+document.getElementById('loadPgn').onclick=()=>{const t=document.getElementById('pgnText').value;if(!t.trim()){statusEl.textContent='الصق نص PGN أولًا في المربع.';return}loadPgn(t)};
+document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnText').value='';statusEl.textContent='تم مسح مربع PGN.'};
+document.getElementById('pgnFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;const t=await file.text();document.getElementById('pgnText').value=t;loadPgn(t);e.target.value=''};
 render();
-</script></body></html>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
+</script>
+</body></html>
