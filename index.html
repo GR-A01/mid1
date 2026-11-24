@@ -120,7 +120,7 @@ function bootStockfish(){
    const workerBlob=new Blob([workerSource],{type:'text/javascript'});
    const workerUrl=URL.createObjectURL(workerBlob);
    sfWorker=new Worker(workerUrl);
-   URL.revokeObjectURL(workerUrl);
+   // Keep the Blob URL alive while the worker starts.
    let settled=false;const timeout=setTimeout(()=>{if(!settled){settled=true;reject(new Error('انتهت مهلة تحميل المحرك. قد يكون تنزيل ملف WASM محجوبًا.'))}},60000);
    sfWorker.onmessage=e=>{
     const line=String(e.data||'').trim();
@@ -135,7 +135,7 @@ function bootStockfish(){
       sfCurrent.bestmove=line.split(/\s+/)[1];const done=sfCurrent.resolve;sfCurrent=null;done();
     }
    };
-   sfWorker.onerror=()=>{if(!settled){settled=true;clearTimeout(timeout);reject(new Error('تعذّر تحميل ملفات Stockfish. تحقق من الإنترنت ثم أعد المحاولة.'))}};
+   sfWorker.onerror=(ev)=>{const detail=ev&&ev.message?ev.message:'تعذّر تحميل ملف المحرك أو WASM';if(!settled){settled=true;clearTimeout(timeout);reject(new Error('تعذّر تشغيل Stockfish: '+detail))}};
    sfWorker.postMessage('uci');
   }catch(err){reject(err)}
  });
