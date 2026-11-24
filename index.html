@@ -174,7 +174,7 @@ async function analyzeGame(){
  finally{analysisBusy=false;btn.disabled=false}
 }
 document.getElementById('analyze').addEventListener('click',analyzeGame);
-\nrender();
+render();
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
 </script>
 </body></html>
