@@ -107,7 +107,7 @@ document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnTex
 document.getElementById('pgnFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;const t=await file.text();document.getElementById('pgnText').value=t;loadPgn(t);e.target.value=''};
 
 let sfWorker=null,sfReady=false,sfQueue=[],sfCurrent=null,sfResults=[],analysisBusy=false;
-const ENGINE_BASE='https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/';
+const ENGINE_BASE='https://unpkg.com/stockfish@19.0.1/bin/';
 function engineStatus(t){document.getElementById('engineStatus').textContent=t}
 function setProgress(done,total){document.getElementById('progressBar').style.width=(total?Math.round(done/total*100):0)+'%'}
 function bootStockfish(){
