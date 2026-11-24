@@ -123,8 +123,9 @@ function bootStockfish(){
    // a relative .wasm URL against the temporary Blob worker URL.
    const workerSource=`
     const pending=[];
-    let engineLoaded=false;
-    self.onmessage=e=>{if(!engineLoaded)pending.push(e.data)};
+    let engineLoaded=false,engineHandler=null;
+    const queueMessage=e=>{if(!engineLoaded)pending.push(e.data);else if(engineHandler)engineHandler.call(self,e)};
+    self.onmessage=queueMessage;
     (async()=>{
      let binary=null,lastError=null;
      for(const url of ${JSON.stringify(wasmUrls)}){
@@ -139,13 +140,15 @@ function bootStockfish(){
      if(!binary)throw new Error('تعذّر تنزيل WASM من مصادر المحرك: '+(lastError?.message||'NetworkError'));
      self.Module={
       wasmBinary:binary,
-      locateFile:(path)=>path.endsWith('.wasm')?'data:application/wasm;base64,':path
+      locateFile:(path)=>path.endsWith('.wasm')?${JSON.stringify(wasmUrls[0])}:path
      };
      importScripts(${JSON.stringify(jsUrl)});
-     const engineHandler=self.onmessage;
-     if(typeof engineHandler!=='function')throw new Error('لم يتم تهيئة عامل Stockfish');
+     const stockfishHandler=self.onmessage;
+     if(typeof stockfishHandler!=='function'||stockfishHandler===queueMessage)throw new Error('لم يتم تهيئة عامل Stockfish');
+     engineHandler=stockfishHandler;
+     self.onmessage=queueMessage;
      engineLoaded=true;
-     for(const data of pending)engineHandler({data});
+     for(const data of pending)engineHandler.call(self,{data});
     })().catch(error=>self.postMessage('ENGINE_LOAD_ERROR '+(error?.message||String(error))));
    `;
    const workerBlob=new Blob([workerSource],{type:'text/javascript'});
