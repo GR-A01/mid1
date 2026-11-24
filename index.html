@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101827"><title>KASHAFF | محلل الشطرنج</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#1b2738;--muted:#9aabc0;--gold:#e8bd62;--line:#34445a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f4f6fa;font-family:system-ui,Arial,sans-serif}
+header{padding:22px max(18px,calc((100% - 1050px)/2));border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}
+.logo{width:42px;height:42px;border-radius:13px;background:var(--gold);color:#182235;display:grid;place-items:center;font-size:25px;font-weight:800}
+h1{font-size:22px;margin:0}header small{color:var(--muted)}
+main{max-width:1050px;margin:24px auto;padding:0 16px;display:grid;grid-template-columns:minmax(280px,520px) minmax(260px,1fr);gap:20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px}
+.board{display:grid;grid-template-columns:repeat(8,1fr);aspect-ratio:1;border:5px solid #26364b;border-radius:8px;overflow:hidden}
+.square{border:0;display:grid;place-items:center;font-size:clamp(25px,6vw,48px);cursor:pointer;color:#111827;padding:0}
+.light{background:#e8dfca}.dark{background:#78917e}.selected{outline:4px solid var(--gold);outline-offset:-4px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+button,.filelabel{background:#29394f;color:white;border:1px solid #465a74;border-radius:10px;padding:10px 13px;font:inherit;cursor:pointer}
+button.primary{background:var(--gold);color:#172235;border:0;font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+.status{color:var(--muted);font-size:14px;margin:12px 0}
+.moves{min-height:120px;max-height:230px;overflow:auto;line-height:2;color:#dce5ef;white-space:pre-wrap}
+input[type=file]{display:none}.hint{color:var(--muted);font-size:13px;line-height:1.7}
+.metric{padding:12px;background:#121d2c;border-radius:12px;margin:10px 0}.metric strong{color:var(--gold)}
+@media(max-width:760px){main{grid-template-columns:1fr;margin:14px auto}header{padding:16px}}
+</style></head>
+<body>
+<header><div class="logo">♞</div><div><h1>KASHAFF</h1><small>محلل الشطرنج</small></div></header>
+<main>
+<section class="panel"><div id="board" class="board" aria-label="رقعة الشطرنج"></div>
+<div class="controls"><button id="start">البداية</button><button id="prev">السابق</button><button id="next">التالي</button><button id="end">النهاية</button></div>
+<div class="controls"><label class="filelabel" for="pgn">استيراد مباراة PGN</label><input id="pgn" type="file" accept=".pgn,.txt"></div>
+<p class="status" id="status">حمّل مباراة PGN أو ابدأ بتحريك القطع.</p></section>
+<aside class="panel"><h2>التحليل</h2><div class="metric">حالة المحرك: <strong id="engine">لم يتم تشغيل المحرك بعد</strong></div>
+<div class="metric">النقلة الحالية: <strong id="current">—</strong></div><h3>النقلات</h3><div class="moves" id="moves">لم تُحمّل أي مباراة بعد.</div>
+<p class="hint">هذه نسخة أولية من واجهة KASHAFF. سيتم تفعيل تقييم Stockfish وتصنيف الأخطاء بعد إضافة ملفات المحرك واختبار تشغيله في المتصفح.</p></aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+const game=new Chess();let history=[],cursor=0,selected=null;
+const board=document.getElementById('board'),statusEl=document.getElementById('status');
+const glyph={wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'};
+function render(){board.innerHTML='';const b=game.board();for(let r=0;r<8;r++)for(let c=0;c<8;c++){const sq=String.fromCharCode(97+c)+(8-r),p=b[r][c],el=document.createElement('button');el.className='square '+((r+c)%2?'dark':'light')+(selected===sq?' selected':'');el.textContent=p?glyph[p.color+p.type]:'';el.title=sq;el.onclick=()=>tap(sq);board.append(el)}
+document.getElementById('current').textContent=cursor?history[cursor-1]?.san||'—':'بداية المباراة';document.getElementById('moves').textContent=history.map((m,i)=>(i%2===0?Math.floor(i/2)+1+'. ':'')+m.san).join('  ')||'لا توجد نقلات';}
+function tap(sq){if(selected){let m=game.move({from:selected,to:sq,promotion:'q'});selected=null;if(m){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تنفيذ النقلة '+m.san;return}}selected=sq;render()}
+function go(n){game.reset();for(let i=0;i<n;i++)game.move(history[i]);cursor=n;render()}
+document.getElementById('start').onclick=()=>go(0);document.getElementById('prev').onclick=()=>go(Math.max(0,cursor-1));document.getElementById('next').onclick=()=>go(Math.min(history.length,cursor+1));document.getElementById('end').onclick=()=>go(history.length);
+document.getElementById('pgn').onchange=async e=>{const f=e.target.files[0];if(!f)return;const t=await f.text();game.reset();if(game.load_pgn(t)){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تحميل المباراة بنجاح.'}else statusEl.textContent='تعذر قراءة الملف. تأكد أنه بصيغة PGN.'};
+render();
+</script></body></html>
