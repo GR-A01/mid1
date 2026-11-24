@@ -27,6 +27,10 @@ input[type=file]{display:none}
 .moves{max-height:270px;overflow:auto;background:#0d1726;border:1px solid #26374d;border-radius:12px;padding:12px;line-height:2;direction:ltr;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:#dce5ef}
 .info-card{background:#0e1928;border:1px solid #293a50;border-radius:13px;padding:13px;margin-bottom:14px}.info-card strong{color:var(--gold)}
 .note{font-size:13px;line-height:1.8;color:var(--muted);margin:13px 0 0}
+.analysis-box{margin:12px 0;padding:13px;background:#0d1726;border:1px solid #30445e;border-radius:13px}
+.analysis-box button{width:100%}.progress{height:7px;background:#26374d;border-radius:20px;overflow:hidden;margin-top:10px}.progress>span{display:block;height:100%;width:0;background:var(--gold);transition:width .2s}
+.analysis-result{font-size:13px;line-height:1.9;margin-top:10px}.eval-row{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid #26374d;padding:7px 0}.tag{color:var(--gold);font-weight:700}
+
 @media(max-width:760px){main{grid-template-columns:1fr;margin:14px auto;gap:13px}.panel{padding:13px;border-radius:17px}header{padding:13px 16px}.square{font-size:clamp(24px,8vw,46px)}.board-wrap{padding:5px}}
 </style>
 </head>
@@ -51,11 +55,11 @@ input[type=file]{display:none}
  </div>
 </section>
 <aside class="panel">
- <h2 class="section-title">ملخص المباراة</h2>
- <div class="info-card">المحرك: <strong id="engine">غير مفعّل بعد</strong></div>
+ <h2 class="section-title">تحليل المباراة</h2>\n <div class="analysis-box"><button class="primary" id="analyze">تحليل المباراة بمحرك Stockfish</button><div class="status" id="engineStatus">المحرك غير محمّل. يتطلب الاتصال بالإنترنت عند أول تشغيل.</div><div class="progress"><span id="progressBar"></span></div><div class="analysis-result" id="analysisResult">حمّل مباراة PGN ثم ابدأ التحليل.</div></div>
+ <div class="info-card">المحرك: <strong id="engine">Stockfish 19 Lite</strong></div>
  <div class="info-card">النقلة المعروضة: <strong id="current">بداية المباراة</strong></div>
  <h3 class="section-title">سجل النقلات</h3><div class="moves" id="moves">لم يتم تحميل مباراة بعد.</div>
- <p class="note">هذه النسخة تصلح لعرض الرقعة والتنقل بين النقلات وتحميل PGN. تحليل Stockfish وتصنيف النقلات سيُضاف في مرحلة لاحقة بعد دمج المحرك واختباره.</p>
+ <p class="note">يستخدم KASHAFF نسخة Stockfish 19 Lite أحادية الخيط للمتصفح. المحرك يعمل على جهازك داخل المتصفح، لكنه يحتاج تنزيل ملفاته من الإنترنت أول مرة. دقة التصنيف تقريبية وتتأثر بعمق البحث.</p>
 </aside>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
@@ -90,7 +94,89 @@ function loadPgn(text){
 document.getElementById('loadPgn').onclick=()=>{const t=document.getElementById('pgnText').value;if(!t.trim()){statusEl.textContent='الصق نص PGN أولًا في المربع.';return}loadPgn(t)};
 document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnText').value='';statusEl.textContent='تم مسح مربع PGN.'};
 document.getElementById('pgnFile').onchange=async e=>{const file=e.target.files[0];if(!file)return;const t=await file.text();document.getElementById('pgnText').value=t;loadPgn(t);e.target.value=''};
-render();
+
+let sfWorker=null,sfReady=false,sfQueue=[],sfCurrent=null,sfResults=[],analysisBusy=false;
+const ENGINE_BASE='https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/';
+function engineStatus(t){document.getElementById('engineStatus').textContent=t}
+function setProgress(done,total){document.getElementById('progressBar').style.width=(total?Math.round(done/total*100):0)+'%'}
+function bootStockfish(){
+ return new Promise((resolve,reject)=>{
+  if(sfReady&&sfWorker){resolve();return}
+  try{
+   const wrapper=`self.Module={locateFile:function(path){return '${ENGINE_BASE}'+path}};importScripts('${ENGINE_BASE}stockfish-19-lite-single.js');`;
+   const blob=new Blob([wrapper],{type:'text/javascript'}),url=URL.createObjectURL(blob);
+   sfWorker=new Worker(url);URL.revokeObjectURL(url);
+   let settled=false;const timeout=setTimeout(()=>{if(!settled){settled=true;reject(new Error('انتهت مهلة تحميل المحرك'))}},60000);
+   sfWorker.onmessage=e=>{
+    const line=String(e.data||'');
+    if(line==='uciok'){sfWorker.postMessage('isready')}
+    else if(line==='readyok'){sfReady=true;if(!settled){settled=true;clearTimeout(timeout);resolve()}}
+    if(sfCurrent&&line.startsWith('info ')){
+      const m=line.match(/\bscore (cp|mate) (-?\d+)/);
+      if(m){let v=Number(m[2]);if(m[1]==='mate')v=v>0?100000-Math.min(999,Math.abs(v))*100:-100000+Math.min(999,Math.abs(v))*100;sfCurrent.score=v}
+      const pv=line.match(/\bpv (\S+)/);if(pv)sfCurrent.pv=pv[1];
+    }
+    if(sfCurrent&&line.startsWith('bestmove ')){
+      sfCurrent.bestmove=line.split(/\s+/)[1];const done=sfCurrent.resolve;sfCurrent=null;done();
+    }
+   };
+   sfWorker.onerror=()=>{if(!settled){settled=true;clearTimeout(timeout);reject(new Error('تعذّر تحميل ملفات Stockfish. تحقق من الإنترنت ثم أعد المحاولة.'))}};
+   sfWorker.postMessage('uci');
+  }catch(err){reject(err)}
+ });
+}
+function uciSearch(fen,depth){
+ return new Promise((resolve,reject)=>{
+  if(!sfWorker||!sfReady){reject(new Error('المحرك غير جاهز'));return}
+  const job={score:0,pv:null,bestmove:null,resolve:()=>resolve(job)};
+  sfCurrent=job;sfWorker.postMessage('position fen '+fen);sfWorker.postMessage('go depth '+depth);
+  job.timer=setTimeout(()=>{if(sfCurrent===job){sfWorker.postMessage('stop');sfCurrent=null;reject(new Error('استغرق التحليل وقتًا أطول من المتوقع'))}},45000);
+  const finish=job.resolve;job.resolve=()=>{clearTimeout(job.timer);finish()};
+ });
+}
+function classifyLoss(loss){
+ if(loss<=15)return 'أفضل نقلة';
+ if(loss<=40)return 'جيدة';
+ if(loss<=90)return 'غير دقيقة';
+ if(loss<=180)return 'خطأ';
+ return 'خطأ فادح';
+}
+function sanFromUci(fen,uci){
+ if(!uci||uci==='(none)'||uci==='0000')return '—';
+ try{const g=new Chess(fen);const m=g.move({from:uci.slice(0,2),to:uci.slice(2,4),promotion:uci.length>4?uci[4]:'q'});return m?m.san:uci}catch(e){return uci}
+}
+async function analyzeGame(){
+ if(analysisBusy)return;
+ if(!history.length){engineStatus('حمّل مباراة PGN أولًا حتى يتم تحليلها.');return}
+ analysisBusy=true;const btn=document.getElementById('analyze');btn.disabled=true;document.getElementById('analysisResult').textContent='جارٍ تجهيز المباراة...';setProgress(0,history.length+1);
+ try{
+  engineStatus('جارٍ تحميل Stockfish 19 Lite...');await bootStockfish();
+  engineStatus('المحرك جاهز. جارٍ تحليل النقلات...');
+  const replay=new Chess(),fens=[replay.fen()];
+  for(const m of history){const ok=replay.move({from:m.from,to:m.to,promotion:m.promotion||'q'});if(!ok)throw new Error('تعذّر إعادة بناء المباراة');fens.push(replay.fen())}
+  const evals=[];
+  for(let i=0;i<fens.length;i++){
+   const result=await uciSearch(fens[i],10);evals.push(result);
+   setProgress(i+1,fens.length);
+   engineStatus('تحليل الوضعية '+(i+1)+' من '+fens.length+' — عمق 10');
+  }
+  const rows=[];let counts={'أفضل نقلة':0,'جيدة':0,'غير دقيقة':0,'خطأ':0,'خطأ فادح':0};
+  for(let i=0;i<history.length;i++){
+   const mover=i%2===0?'w':'b';
+   const prev=evals[i].score*(fens[i].split(' ')[1]==='w'?1:-1);
+   const curr=evals[i+1].score*(fens[i+1].split(' ')[1]==='w'?1:-1);
+   const loss=Math.max(0,mover==='w'?prev-curr:curr-prev);
+   const label=classifyLoss(loss);counts[label]++;
+   rows.push({n:i+1,side:mover==='w'?'الأبيض':'الأسود',played:history[i].san,best:sanFromUci(fens[i],evals[i].bestmove),loss:Math.round(loss),label});
+  }
+  const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
+  document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp</small></span><span class="tag">'+r.label+'</span></div>').join('');
+  engineStatus('اكتمل التحليل بنجاح — Stockfish 19 Lite، عمق 10.');
+ }catch(err){engineStatus(err.message||'حدث خطأ أثناء التحليل.');document.getElementById('analysisResult').textContent='لم يكتمل التحليل. يمكنك إعادة المحاولة بعد التأكد من الاتصال بالإنترنت.'}
+ finally{analysisBusy=false;btn.disabled=false}
+}
+document.getElementById('analyze').addEventListener('click',analyzeGame);
+\nrender();
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}))}
 </script>
 </body></html>
