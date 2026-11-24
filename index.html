@@ -114,10 +114,16 @@ function bootStockfish(){
  return new Promise((resolve,reject)=>{
   if(sfReady&&sfWorker){resolve();return}
   try{
-   sfWorker=new Worker(ENGINE_BASE+'stockfish-19-lite-single.js');
-   let settled=false;const timeout=setTimeout(()=>{if(!settled){settled=true;reject(new Error('انتهت مهلة تحميل المحرك'))}},60000);
+   // Workers must be same-origin on many browsers. Use a same-origin Blob worker
+   // that imports the Stockfish script from jsDelivr and points WASM to the matching CDN file.
+   const workerSource="self.Module={locateFile:function(path){return new URL(path,'"+ENGINE_BASE+"').href}};importScripts('"+ENGINE_BASE+"stockfish-19-lite-single.js');";
+   const workerBlob=new Blob([workerSource],{type:'text/javascript'});
+   const workerUrl=URL.createObjectURL(workerBlob);
+   sfWorker=new Worker(workerUrl);
+   URL.revokeObjectURL(workerUrl);
+   let settled=false;const timeout=setTimeout(()=>{if(!settled){settled=true;reject(new Error('انتهت مهلة تحميل المحرك. قد يكون تنزيل ملف WASM محجوبًا.'))}},60000);
    sfWorker.onmessage=e=>{
-    const line=String(e.data||'');
+    const line=String(e.data||'').trim();
     if(line==='uciok'){sfWorker.postMessage('isready')}
     else if(line==='readyok'){sfReady=true;if(!settled){settled=true;clearTimeout(timeout);resolve()}}
     if(sfCurrent&&line.startsWith('info ')){
