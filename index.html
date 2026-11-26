@@ -171,8 +171,12 @@ function bootStockfish(){
       if(pv&&(!multi||Number(multi[1])===1))sfCurrent.pv=pv[1];
      }
      if(sfCurrent&&line.startsWith('bestmove ')){
-      sfCurrent.bestmove=line.match(/\bbestmove\s+(\S+)/)?.[1]||null;
-      const done=sfCurrent.resolve;sfCurrent=null;done();
+      const finished=sfCurrent;
+      finished.bestmove=line.match(/\bbestmove\s+(\S+)/)?.[1]||null;
+      sfCurrent=null;
+      if(!finished.scoreSeen||!finished.bestmove){
+       finished.reject(new Error('وصل رد المحرك دون تقييم أو أفضل نقلة؛ أعد المحاولة.'));
+      }else finished.resolve();
      }
     }
    };
@@ -194,10 +198,11 @@ function bootStockfish(){
 function uciSearch(fen,depth){
  return new Promise((resolve,reject)=>{
   if(!sfWorker||!sfReady){reject(new Error('المحرك غير جاهز'));return}
-  const job={score:0,scoreSeen:false,depth:0,pv:null,bestmove:null,resolve:()=>resolve(job)};
+  const job={score:0,scoreSeen:false,depth:0,pv:null,bestmove:null,resolve:()=>resolve(job),reject};
   sfCurrent=job;sfWorker.postMessage('position fen '+fen);sfWorker.postMessage('go depth '+depth);
   job.timer=setTimeout(()=>{if(sfCurrent===job){sfWorker.postMessage('stop');sfCurrent=null;reject(new Error('استغرق التحليل وقتًا أطول من المتوقع'))}},45000);
   const finish=job.resolve;job.resolve=()=>{clearTimeout(job.timer);finish()};
+  const fail=job.reject;job.reject=err=>{clearTimeout(job.timer);fail(err)};
  });
 }
 function classifyLoss(loss){
