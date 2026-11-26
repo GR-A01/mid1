@@ -100,7 +100,12 @@ document.getElementById('start').onclick=()=>go(0);document.getElementById('prev
 function loadPgn(text){
  const candidate=new Chess();const ok=candidate.load_pgn(text.trim());
  if(!ok){statusEl.textContent='لم أتمكن من قراءة النص. تأكد من نسخ PGN كاملًا.';return false}
- game.load(candidate.fen());history=candidate.history({verbose:true});cursor=history.length;selected=null;sfResults=[];render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
+ const headers=candidate.header();
+ const startFen=headers&&headers.FEN?headers.FEN:null;
+ if(startFen){if(!game.load(startFen)){statusEl.textContent='تعذّر تحميل وضعية البداية المحددة في PGN.';return false}}else game.reset();
+ history=candidate.history({verbose:true});
+ for(const move of history){const replayed=game.move({from:move.from,to:move.to,promotion:move.promotion||'q'});if(!replayed){game.reset();history=[];cursor=0;statusEl.textContent='تعذّر إعادة بناء نقلات المباراة من PGN.';render();return false}}
+ cursor=history.length;selected=null;sfResults=[];render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
 }
 document.getElementById('loadPgn').onclick=()=>{const t=document.getElementById('pgnText').value;if(!t.trim()){statusEl.textContent='الصق نص PGN أولًا في المربع.';return}loadPgn(t)};
 document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnText').value='';statusEl.textContent='تم مسح مربع PGN.'};
