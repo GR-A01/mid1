@@ -166,7 +166,6 @@ document.getElementById('pgnFile').onchange=async e=>{const file=e.target.files[
 
 let sfWorker=null,sfReady=false,sfQueue=[],sfCurrent=null,sfResults=[],analysisBusy=false;
 const ENGINE_BASE='https://unpkg.com/stockfish@19.0.1/bin/';
-const ANALYSIS_DEPTH=20;
 function engineStatus(t){document.getElementById('engineStatus').textContent=t}
 function setProgress(done,total){document.getElementById('progressBar').style.width=(total?Math.round(done/total*100):0)+'%'}
 function bootStockfish(){
@@ -317,14 +316,14 @@ async function analyzeGame(){
     evals[position]=await uciSearch(fens[position],depth);
     completed++;
     setProgress(totalBefore+completed,totalBefore+positions.size);
-    engineStatus('المرحلة '+stage+'/3: تحليل '+completed+' من '+positions.size+' وضعية — عمق '+depth);
+    engineStatus('المرحلة '+stage+'/2: تحليل '+completed+' من '+positions.size+' وضعية — عمق '+depth);
    }
   };
   // Stage 1: a fast baseline for every position in the game.
   for(let i=0;i<fens.length;i++){
    evals.push(await uciSearch(fens[i],12));
    setProgress(i+1,fens.length);
-   engineStatus('المرحلة 1/3: تحليل سريع '+(i+1)+' من '+fens.length+' — عمق 12');
+   engineStatus('المرحلة 1/2: تحليل سريع '+(i+1)+' من '+fens.length+' — عمق 12');
   }
   let rows=buildRows();
   // Stage 2: refine clear mistakes and blunders at depth 16.
