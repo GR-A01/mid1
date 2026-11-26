@@ -94,7 +94,7 @@ function render(){
  document.getElementById('current').textContent=cursor?((Math.ceil(cursor/2))+((cursor%2)?'...':' .')+' '+history[cursor-1].san):'بداية المباراة';
  const currentReview=cursor>0?sfResults[cursor-1]:null;
  document.getElementById('evalCurrent').textContent=currentReview?(currentReview.loss+' cp خسارة تقديرية'):'—';
- document.getElementById('depthCurrent').textContent=sfResults.length?'10':'10 (لم يبدأ التحليل)';
+ document.getElementById('depthCurrent').textContent=sfResults.length?String(ANALYSIS_DEPTH):ANALYSIS_DEPTH+' (لم يبدأ التحليل)';
  document.getElementById('bestMove').textContent=currentReview?currentReview.best:'—';
  document.getElementById('moveClass').textContent=currentReview?currentReview.label:'—';
  document.getElementById('moves').textContent=history.length?formatMoves(history):'لم يتم تحميل مباراة بعد.';
@@ -166,6 +166,7 @@ document.getElementById('pgnFile').onchange=async e=>{const file=e.target.files[
 
 let sfWorker=null,sfReady=false,sfQueue=[],sfCurrent=null,sfResults=[],analysisBusy=false;
 const ENGINE_BASE='https://unpkg.com/stockfish@19.0.1/bin/';
+const ANALYSIS_DEPTH=20;
 function engineStatus(t){document.getElementById('engineStatus').textContent=t}
 function setProgress(done,total){document.getElementById('progressBar').style.width=(total?Math.round(done/total*100):0)+'%'}
 function bootStockfish(){
@@ -270,7 +271,7 @@ function uciSearch(fen,depth){
   if(!sfWorker||!sfReady){reject(new Error('المحرك غير جاهز'));return}
   const job={score:0,scoreSeen:false,depth:0,pv:null,bestmove:null,resolve:()=>resolve(job),reject};
   sfCurrent=job;sfWorker.postMessage('position fen '+fen);sfWorker.postMessage('go depth '+depth);
-  job.timer=setTimeout(()=>{if(sfCurrent===job){sfWorker.postMessage('stop');sfCurrent=null;reject(new Error('استغرق التحليل وقتًا أطول من المتوقع'))}},45000);
+  job.timer=setTimeout(()=>{if(sfCurrent===job){sfWorker.postMessage('stop');sfCurrent=null;reject(new Error('استغرق التحليل وقتًا أطول من المتوقع'))}},120000);
   const finish=job.resolve;job.resolve=()=>{clearTimeout(job.timer);finish()};
   const fail=job.reject;job.reject=err=>{clearTimeout(job.timer);fail(err)};
  });
@@ -297,9 +298,9 @@ async function analyzeGame(){
   for(const m of history){const ok=replay.move({from:m.from,to:m.to,promotion:m.promotion||'q'});if(!ok)throw new Error('تعذّر إعادة بناء المباراة');fens.push(replay.fen())}
   const evals=[];
   for(let i=0;i<fens.length;i++){
-   const result=await uciSearch(fens[i],10);evals.push(result);
+   const result=await uciSearch(fens[i],ANALYSIS_DEPTH);evals.push(result);
    setProgress(i+1,fens.length);
-   engineStatus('تحليل الوضعية '+(i+1)+' من '+fens.length+' — عمق 10');
+   engineStatus('تحليل الوضعية '+(i+1)+' من '+fens.length+' — عمق '+ANALYSIS_DEPTH);
   }
   const rows=[];let counts={'أفضل نقلة':0,'جيدة':0,'غير دقيقة':0,'خطأ':0,'خطأ فادح':0};
   for(let i=0;i<history.length;i++){
@@ -312,7 +313,7 @@ async function analyzeGame(){
   }
   sfResults=rows;render();const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
   document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp</small></span><span class="tag">'+r.label+'</span></div>').join('');
-  engineStatus('اكتمل التحليل بنجاح — Stockfish 19 Lite، عمق 10.');
+  engineStatus('اكتمل التحليل بنجاح — Stockfish 19 Lite، عمق '+ANALYSIS_DEPTH+'.');
  }catch(err){engineStatus(err.message||'حدث خطأ أثناء التحليل.');document.getElementById('analysisResult').textContent='لم يكتمل التحليل. يمكنك إعادة المحاولة بعد التأكد من الاتصال بالإنترنت.'}
  finally{analysisBusy=false;btn.disabled=false}
 }
