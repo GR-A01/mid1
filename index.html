@@ -313,7 +313,7 @@ async function analyzeGame(){
    rows.push({n:i+1,side:i%2===0?'الأبيض':'الأسود',played:history[i].san,best:sanFromUci(fens[i],evals[i].bestmove),bestUci:evals[i].bestmove,from:history[i].from,to:history[i].to,loss:Math.round(loss),label:classifyLoss(loss),depth:12});
   }
   const deepPositions=new Set();
-  rows.forEach((row,i)=>{if(row.loss>40){deepPositions.add(i);deepPositions.add(i+1)}});
+  rows.forEach((row,i)=>{if(row.loss>180){deepPositions.add(i);deepPositions.add(i+1)}});
   if(deepPositions.size){
    let completed=0;
    engineStatus('المرحلة 2/2: إعادة تحليل النقلات المشكوك فيها بعمق 20...');
