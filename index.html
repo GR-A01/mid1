@@ -296,48 +296,58 @@ async function analyzeGame(){
   const replay=new Chess(),fens=[replay.fen()];
   for(const m of history){const ok=replay.move({from:m.from,to:m.to,promotion:m.promotion||'q'});if(!ok)throw new Error('تعذّر إعادة بناء المباراة');fens.push(replay.fen())}
   const evals=[];
-  for(let i=0;i<fens.length;i++){
-   const result=await uciSearch(fens[i],12);evals.push(result);
-   setProgress(i+1,fens.length);
-   engineStatus('المرحلة 1/2: تحليل سريع '+(i+1)+' من '+fens.length+' — عمق 12');
-  }
   const scoreLoss=(i,source)=>{
    const mover=i%2===0?'w':'b';
    const prev=source[i].score*(fens[i].split(' ')[1]==='w'?1:-1);
    const curr=source[i+1].score*(fens[i+1].split(' ')[1]==='w'?1:-1);
    return Math.max(0,mover==='w'?prev-curr:curr-prev);
   };
-  const rows=[];
-  for(let i=0;i<history.length;i++){
-   const loss=scoreLoss(i,evals);
-   rows.push({n:i+1,side:i%2===0?'الأبيض':'الأسود',played:history[i].san,best:sanFromUci(fens[i],evals[i].bestmove),bestUci:evals[i].bestmove,from:history[i].from,to:history[i].to,loss:Math.round(loss),label:classifyLoss(loss),depth:12});
-  }
-  const deepPositions=new Set();
-  rows.forEach((row,i)=>{if(row.loss>180){deepPositions.add(i);deepPositions.add(i+1)}});
-  if(deepPositions.size){
+  const buildRows=()=>history.map((move,i)=>{
+   const loss=Math.round(scoreLoss(i,evals));
+   return {n:i+1,side:i%2===0?'الأبيض':'الأسود',played:move.san,best:sanFromUci(fens[i],evals[i].bestmove),bestUci:evals[i].bestmove,from:move.from,to:move.to,loss,label:classifyLoss(loss),depth:Math.max(evals[i].depth,evals[i+1].depth)};
+  });
+  const positionsForRows=indices=>{
+   const positions=new Set();
+   indices.forEach(i=>{positions.add(i);positions.add(i+1)});
+   return positions;
+  };
+  const runStage=async(positions,depth,stage,totalBefore)=>{
    let completed=0;
-   engineStatus('المرحلة 2/2: إعادة تحليل النقلات المشكوك فيها بعمق 20...');
-   for(const position of deepPositions){
-    evals[position]=await uciSearch(fens[position],20);
+   for(const position of positions){
+    evals[position]=await uciSearch(fens[position],depth);
     completed++;
-    setProgress(fens.length+completed,fens.length+deepPositions.size);
-    engineStatus('المرحلة 2/2: تحليل معمّق '+completed+' من '+deepPositions.size+' وضعية — عمق 20');
+    setProgress(totalBefore+completed,totalBefore+positions.size);
+    engineStatus('المرحلة '+stage+'/3: تحليل '+completed+' من '+positions.size+' وضعية — عمق '+depth);
    }
-   rows.forEach((row,i)=>{
-    if(deepPositions.has(i)||deepPositions.has(i+1)){
-     const loss=scoreLoss(i,evals);
-     row.loss=Math.round(loss);row.label=classifyLoss(loss);row.depth=20;
-     row.best=sanFromUci(fens[i],evals[i].bestmove);row.bestUci=evals[i].bestmove;
-    }
-   });
+  };
+  // Stage 1: a fast baseline for every position in the game.
+  for(let i=0;i<fens.length;i++){
+   evals.push(await uciSearch(fens[i],12));
+   setProgress(i+1,fens.length);
+   engineStatus('المرحلة 1/3: تحليل سريع '+(i+1)+' من '+fens.length+' — عمق 12');
+  }
+  let rows=buildRows();
+  // Stage 2: refine clear mistakes and blunders at depth 16.
+  const mediumRows=rows.map((r,i)=>r.loss>90?i:-1).filter(i=>i>=0);
+  const mediumPositions=positionsForRows(mediumRows);
+  if(mediumPositions.size){
+   await runStage(mediumPositions,16,2,fens.length);
+   rows=buildRows();
+  }
+  // Stage 3: use depth 20 only for positions still showing a major blunder.
+  const deepRows=rows.map((r,i)=>r.loss>180?i:-1).filter(i=>i>=0);
+  const deepPositions=positionsForRows(deepRows);
+  if(deepPositions.size){
+   await runStage(deepPositions,20,3,fens.length+mediumPositions.size);
+   rows=buildRows();
   }
   sfResults=rows;render();
   const counts={'أفضل نقلة':0,'جيدة':0,'غير دقيقة':0,'خطأ':0,'خطأ فادح':0};
   rows.forEach(r=>counts[r.label]++);
   const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
-  document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل الذكي</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp · عمق '+r.depth+'</small></span><span class="tag">'+r.label+'</span></div>').join('');
-  const deepCount=rows.filter(r=>r.depth===20).length;
-  engineStatus('اكتمل التحليل — '+(rows.length-deepCount)+' نقلة بعمق 12 و'+deepCount+' نقلة مشكوك فيها أُعيد تحليلها بعمق 20.');
+  document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل الذكي ثلاثي المراحل</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp · عمق '+r.depth+'</small></span><span class="tag">'+r.label+'</span></div>').join('');
+  const depth12=rows.filter(r=>r.depth===12).length,depth16=rows.filter(r=>r.depth===16).length,depth20=rows.filter(r=>r.depth===20).length;
+  engineStatus('اكتمل التحليل — '+depth12+' نقلة بعمق 12، و'+depth16+' بعمق 16، و'+depth20+' بعمق 20.');
  }catch(err){engineStatus(err.message||'حدث خطأ أثناء التحليل.');document.getElementById('analysisResult').textContent='لم يكتمل التحليل. يمكنك إعادة المحاولة بعد التأكد من الاتصال بالإنترنت.'}
  finally{analysisBusy=false;btn.disabled=false}
 }
