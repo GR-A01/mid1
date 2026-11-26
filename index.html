@@ -149,12 +149,12 @@ function bootStockfish(){
      if(!settled){settled=true;clearTimeout(timeout);resolve()}
     }
     if(sfCurrent&&line.startsWith('info ')){
-     const m=line.match(/\\bscore (cp|mate) (-?\\d+)/);
+     const m=line.match(/\bscore (cp|mate) (-?\d+)/);
      if(m){let v=Number(m[2]);if(m[1]==='mate')v=v>0?100000-Math.min(999,Math.abs(v))*100:-100000+Math.min(999,Math.abs(v))*100;sfCurrent.score=v}
-     const pv=line.match(/\\bpv (\\S+)/);if(pv)sfCurrent.pv=pv[1];
+     const pv=line.match(/\bpv (\S+)/);if(pv)sfCurrent.pv=pv[1];
     }
     if(sfCurrent&&line.startsWith('bestmove ')){
-     sfCurrent.bestmove=line.split(/\\s+/)[1];
+     sfCurrent.bestmove=line.match(/^bestmove\s+(\S+)/)?.[1]||null;
      const done=sfCurrent.resolve;sfCurrent=null;done();
     }
    };
