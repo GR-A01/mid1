@@ -140,22 +140,40 @@ function bootStockfish(){
     if(!settled){settled=true;reject(new Error('انتهت مهلة تهيئة Stockfish. تحقق من اتصال الإنترنت ثم أعد المحاولة.'))}
    },90000);
    sfWorker.onmessage=e=>{
-    const line=String(e.data||'').trim();
-    if(line==='uciok'){
-     sawUci=true;
-     sfWorker.postMessage('isready');
-    }else if(line==='readyok'){
-     sfReady=true;
-     if(!settled){settled=true;clearTimeout(timeout);resolve()}
-    }
-    if(sfCurrent&&line.startsWith('info ')){
-     const m=line.match(/\bscore (cp|mate) (-?\d+)/);
-     if(m){let v=Number(m[2]);if(m[1]==='mate')v=v>0?100000-Math.min(999,Math.abs(v))*100:-100000+Math.min(999,Math.abs(v))*100;sfCurrent.score=v}
-     const pv=line.match(/\bpv (\S+)/);if(pv)sfCurrent.pv=pv[1];
-    }
-    if(sfCurrent&&line.startsWith('bestmove ')){
-     sfCurrent.bestmove=line.match(/^bestmove\s+(\S+)/)?.[1]||null;
-     const done=sfCurrent.resolve;sfCurrent=null;done();
+    // Some browser builds batch several UCI output lines into one message.
+    // Parse every line separately so score/PV data is not silently discarded.
+    const raw=String(e.data??'');
+    for(const part of raw.split(/\r?\n/)){
+     const line=part.trim();
+     if(!line)continue;
+     if(line==='uciok'){
+      sawUci=true;
+      sfWorker.postMessage('isready');
+      continue;
+     }
+     if(line==='readyok'){
+      sfReady=true;
+      if(!settled){settled=true;clearTimeout(timeout);resolve()}
+      continue;
+     }
+     if(sfCurrent&&line.startsWith('info ')){
+      const depthMatch=line.match(/\bdepth (\d+)/);
+      const depth=depthMatch?Number(depthMatch[1]):0;
+      const m=line.match(/\bscore (cp|mate) (-?\d+)/);
+      // Keep the deepest score reported for the main line (multipv 1).
+      const multi=line.match(/\bmultipv (\d+)/);
+      if(m&&(!multi||Number(multi[1])===1)&&depth>=sfCurrent.depth){
+       let v=Number(m[2]);
+       if(m[1]==='mate')v=v>0?100000-Math.min(999,Math.abs(v))*100:-100000+Math.min(999,Math.abs(v))*100;
+       sfCurrent.score=v;sfCurrent.depth=depth;sfCurrent.scoreSeen=true;
+      }
+      const pv=line.match(/\bpv (\S+)/);
+      if(pv&&(!multi||Number(multi[1])===1))sfCurrent.pv=pv[1];
+     }
+     if(sfCurrent&&line.startsWith('bestmove ')){
+      sfCurrent.bestmove=line.match(/\bbestmove\s+(\S+)/)?.[1]||null;
+      const done=sfCurrent.resolve;sfCurrent=null;done();
+     }
     }
    };
    sfWorker.onerror=ev=>{
@@ -176,7 +194,7 @@ function bootStockfish(){
 function uciSearch(fen,depth){
  return new Promise((resolve,reject)=>{
   if(!sfWorker||!sfReady){reject(new Error('المحرك غير جاهز'));return}
-  const job={score:0,pv:null,bestmove:null,resolve:()=>resolve(job)};
+  const job={score:0,scoreSeen:false,depth:0,pv:null,bestmove:null,resolve:()=>resolve(job)};
   sfCurrent=job;sfWorker.postMessage('position fen '+fen);sfWorker.postMessage('go depth '+depth);
   job.timer=setTimeout(()=>{if(sfCurrent===job){sfWorker.postMessage('stop');sfCurrent=null;reject(new Error('استغرق التحليل وقتًا أطول من المتوقع'))}},45000);
   const finish=job.resolve;job.resolve=()=>{clearTimeout(job.timer);finish()};
