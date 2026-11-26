@@ -1,4 +1,4 @@
-const CACHE='kashaff-v19';;
+const CACHE='kashaff-v20';
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  const keys=await caches.keys();
