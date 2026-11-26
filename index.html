@@ -334,20 +334,13 @@ async function analyzeGame(){
    await runStage(mediumPositions,16,2,fens.length);
    rows=buildRows();
   }
-  // Stage 3: use depth 20 only for positions still showing a major blunder.
-  const deepRows=rows.map((r,i)=>r.loss>180?i:-1).filter(i=>i>=0);
-  const deepPositions=positionsForRows(deepRows);
-  if(deepPositions.size){
-   await runStage(deepPositions,20,3,fens.length+mediumPositions.size);
-   rows=buildRows();
-  }
   sfResults=rows;render();
   const counts={'أفضل نقلة':0,'جيدة':0,'غير دقيقة':0,'خطأ':0,'خطأ فادح':0};
   rows.forEach(r=>counts[r.label]++);
   const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
-  document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل الذكي ثلاثي المراحل</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp · عمق '+r.depth+'</small></span><span class="tag">'+r.label+'</span></div>').join('');
-  const depth12=rows.filter(r=>r.depth===12).length,depth16=rows.filter(r=>r.depth===16).length,depth20=rows.filter(r=>r.depth===20).length;
-  engineStatus('اكتمل التحليل — '+depth12+' نقلة بعمق 12، و'+depth16+' بعمق 16، و'+depth20+' بعمق 20.');
+  document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل الذكي بمرحلتين</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp · عمق '+r.depth+'</small></span><span class="tag">'+r.label+'</span></div>').join('');
+  const depth12=rows.filter(r=>r.depth===12).length,depth16=rows.filter(r=>r.depth===16).length;
+  engineStatus('اكتمل التحليل — '+depth12+' نقلة بعمق 12، و'+depth16+' نقلة بعمق 16.');
  }catch(err){engineStatus(err.message||'حدث خطأ أثناء التحليل.');document.getElementById('analysisResult').textContent='لم يكتمل التحليل. يمكنك إعادة المحاولة بعد التأكد من الاتصال بالإنترنت.'}
  finally{analysisBusy=false;btn.disabled=false}
 }
