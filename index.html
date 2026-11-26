@@ -83,7 +83,7 @@ function render(){
  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
   const sq=String.fromCharCode(97+c)+(8-r),p=b[r][c],el=document.createElement('button');
   el.type='button';el.className='square '+((r+c)%2?'dark':'light')+(selected===sq?' selected':'');
-  if(p){const token=document.createElement('img');token.className='piece-token '+(p.color==='w'?'piece-white':'piece-red');token.alt=p.color==='w'?'قطعة بيضاء':'قطعة حمراء';token.src='/mid1/pieces/cburnett/'+p.color+p.type.toUpperCase()+'.svg';token.draggable=false;token.onerror=()=>{const fallback=document.createElement('span');fallback.className='piece-fallback '+(p.color==='w'?'piece-white-fallback':'piece-red-fallback');fallback.textContent=({wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'})[p.color+p.type];token.replaceWith(fallback)}el.appendChild(token)}if(shownMove&&sq===shownMove.to)el.classList.add('last-to');if(shownMove&&sq===shownMove.from)el.classList.add('last-from');if(r===7){const coord=document.createElement('span');coord.className='coord-file';coord.textContent=sq[0];el.appendChild(coord)}if(c===0){const coord=document.createElement('span');coord.className='coord-rank';coord.textContent=sq[1];el.appendChild(coord)}const shown=cursor>0?sfResults[cursor-1]:null;const lastMove=cursor>0?history[cursor-1]:null;if(shown&&lastMove&&lastMove.to===sq){const badge=document.createElement('span');const badgeMap={'أفضل نقلة':['★','best'],'جيدة':['!','good'],'غير دقيقة':['?!','inaccuracy'],'خطأ':['?','mistake'],'خطأ فادح':['??','blunder']};const spec=badgeMap[shown.label]||['•','good'];badge.className='move-badge '+spec[1];badge.textContent=spec[0];badge.title=shown.label+' — '+shown.loss+' cp';badge.setAttribute('aria-label','تقييم النقلة: '+shown.label);el.appendChild(badge)}el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
+  if(p){const token=document.createElement('img');token.className='piece-token '+(p.color==='w'?'piece-white':'piece-red');token.alt=p.color==='w'?'قطعة بيضاء':'قطعة حمراء';token.src=new URL('pieces/cburnett/'+p.color+p.type.toUpperCase()+'.svg',document.baseURI).href;token.draggable=false;token.onerror=()=>{const fallback=document.createElement('span');fallback.className='piece-fallback '+(p.color==='w'?'piece-white-fallback':'piece-red-fallback');fallback.textContent=({wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'})[p.color+p.type];token.replaceWith(fallback)}el.appendChild(token)}if(shownMove&&sq===shownMove.to)el.classList.add('last-to');if(shownMove&&sq===shownMove.from)el.classList.add('last-from');if(r===7){const coord=document.createElement('span');coord.className='coord-file';coord.textContent=sq[0];el.appendChild(coord)}if(c===0){const coord=document.createElement('span');coord.className='coord-rank';coord.textContent=sq[1];el.appendChild(coord)}const shown=cursor>0?sfResults[cursor-1]:null;const lastMove=cursor>0?history[cursor-1]:null;if(shown&&lastMove&&lastMove.to===sq){const badge=document.createElement('span');const badgeMap={'أفضل نقلة':['★','best'],'جيدة':['!','good'],'غير دقيقة':['?!','inaccuracy'],'خطأ':['?','mistake'],'خطأ فادح':['??','blunder']};const spec=badgeMap[shown.label]||['•','good'];badge.className='move-badge '+spec[1];badge.textContent=spec[0];badge.title=shown.label+' — '+shown.loss+' cp';badge.setAttribute('aria-label','تقييم النقلة: '+shown.label);el.appendChild(badge)}el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
  }
  document.getElementById('current').textContent=cursor?((Math.ceil(cursor/2))+((cursor%2)?'...':' .')+' '+history[cursor-1].san):'بداية المباراة';
  document.getElementById('moves').textContent=history.length?formatMoves(history):'لم يتم تحميل مباراة بعد.';
@@ -100,7 +100,12 @@ document.getElementById('start').onclick=()=>go(0);document.getElementById('prev
 function loadPgn(text){
  const candidate=new Chess();const ok=candidate.load_pgn(text.trim());
  if(!ok){statusEl.textContent='لم أتمكن من قراءة النص. تأكد من نسخ PGN كاملًا.';return false}
- game.load(candidate.fen());history=candidate.history({verbose:true});cursor=history.length;selected=null;sfResults=[];render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
+ const headers=candidate.header();
+ const startFen=headers&&headers.FEN?headers.FEN:null;
+ if(startFen){if(!game.load(startFen)){statusEl.textContent='تعذّر تحميل وضعية البداية المحددة في PGN.';return false}}else game.reset();
+ history=candidate.history({verbose:true});
+ for(const move of history){const replayed=game.move({from:move.from,to:move.to,promotion:move.promotion||'q'});if(!replayed){game.reset();history=[];cursor=0;statusEl.textContent='تعذّر إعادة بناء نقلات المباراة من PGN.';render();return false}}
+ cursor=history.length;selected=null;sfResults=[];render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
 }
 document.getElementById('loadPgn').onclick=()=>{const t=document.getElementById('pgnText').value;if(!t.trim()){statusEl.textContent='الصق نص PGN أولًا في المربع.';return}loadPgn(t)};
 document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnText').value='';statusEl.textContent='تم مسح مربع PGN.'};
@@ -137,7 +142,13 @@ function bootStockfish(){
    sfWorker=new Worker(workerUrl);
    let sawUci=false;
    timeout=setTimeout(()=>{
-    if(!settled){settled=true;reject(new Error('انتهت مهلة تهيئة Stockfish. تحقق من اتصال الإنترنت ثم أعد المحاولة.'))}
+    if(!settled){
+     settled=true;
+     if(sfWorker){sfWorker.terminate();sfWorker=null}
+     sfReady=false;
+     if(workerUrl)URL.revokeObjectURL(workerUrl);
+     reject(new Error('انتهت مهلة تهيئة Stockfish. تحقق من اتصال الإنترنت ثم أعد المحاولة.'));
+    }
    },90000);
    sfWorker.onmessage=e=>{
     // Some browser builds batch several UCI output lines into one message.
@@ -182,7 +193,13 @@ function bootStockfish(){
    };
    sfWorker.onerror=ev=>{
     const detail=ev&&ev.message?ev.message:'فشل تشغيل ملف المحرك';
-    if(!settled){settled=true;clearTimeout(timeout);reject(new Error('تعذّر تشغيل Stockfish: '+detail))}
+    if(!settled){
+     settled=true;clearTimeout(timeout);
+     if(sfWorker){sfWorker.terminate();sfWorker=null}
+     sfReady=false;
+     if(workerUrl)URL.revokeObjectURL(workerUrl);
+     reject(new Error('تعذّر تشغيل Stockfish: '+detail));
+    }
    };
    // The worker starts its UCI loop on creation; send the handshake.
    sfWorker.postMessage('uci');
