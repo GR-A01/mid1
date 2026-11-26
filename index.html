@@ -55,10 +55,12 @@ input[type=file]{display:none}
  </div>
 </section>
 <aside class="panel">
- <h2 class="section-title">تحليل المباراة</h2> <div class="analysis-box"><button class="primary" id="analyze">تحليل المباراة بمحرك Stockfish</button><div class="status" id="engineStatus">المحرك غير محمّل. يتطلب الاتصال بالإنترنت عند أول تشغيل.</div><div class="progress"><span id="progressBar"></span></div><div class="analysis-result" id="analysisResult">حمّل مباراة PGN ثم ابدأ التحليل.</div></div>
- <div class="info-card">المحرك: <strong id="engine">Stockfish 19 Lite</strong></div>
- <div class="info-card">النقلة المعروضة: <strong id="current">بداية المباراة</strong></div>
- <h3 class="section-title">سجل النقلات</h3><div class="moves" id="moves">لم يتم تحميل مباراة بعد.</div>
+ <h2 class="section-title">🏆 معلومات المباراة</h2>
+ <div class="info-card">الأبيض: <strong id="whitePlayer">—</strong><br>الأسود: <strong id="blackPlayer">—</strong><hr style="border:0;border-top:1px solid #29435f;margin:12px 0">التقييم الحالي: <strong id="evalCurrent">—</strong><br>عمق التحليل: <strong id="depthCurrent">10</strong><br>أفضل نقلة: <strong id="bestMove">—</strong><br>تصنيف النقلة: <strong id="moveClass">—</strong></div>
+ <h2 class="section-title">⚙️ تحليل المحرك</h2>
+ <div class="analysis-box"><button class="primary" id="analyze">تحليل المباراة بمحرك Stockfish</button><div class="status" id="engineStatus">المحرك غير محمّل. يتطلب الاتصال بالإنترنت عند أول تشغيل.</div><div class="progress"><span id="progressBar"></span></div><div class="analysis-result" id="analysisResult">حمّل مباراة PGN ثم ابدأ التحليل.</div></div>
+ <div class="info-card">المحرك: <strong id="engine">Stockfish 19 Lite</strong><br>النقلة المعروضة: <strong id="current">بداية المباراة</strong></div>
+ <h3 class="section-title">☷ سجل النقلات</h3><div class="moves" id="moves">لم يتم تحميل مباراة بعد.</div>
  <p class="note">يستخدم KASHAFF نسخة Stockfish 19 Lite أحادية الخيط للمتصفح. المحرك يعمل على جهازك داخل المتصفح، لكنه يحتاج تنزيل ملفاته من الإنترنت أول مرة. دقة التصنيف تقريبية وتتأثر بعمق البحث.</p>
 </aside>
 </main>
@@ -86,6 +88,11 @@ function render(){
   if(p){const token=document.createElement('img');token.className='piece-token '+(p.color==='w'?'piece-white':'piece-red');token.alt=p.color==='w'?'قطعة بيضاء':'قطعة حمراء';token.src=new URL('pieces/cburnett/'+p.color+p.type.toUpperCase()+'.svg',document.baseURI).href;token.draggable=false;token.onerror=()=>{const fallback=document.createElement('span');fallback.className='piece-fallback '+(p.color==='w'?'piece-white-fallback':'piece-red-fallback');fallback.textContent=({wk:'♔',wq:'♕',wr:'♖',wb:'♗',wn:'♘',wp:'♙',bk:'♚',bq:'♛',br:'♜',bb:'♝',bn:'♞',bp:'♟'})[p.color+p.type];token.replaceWith(fallback)}el.appendChild(token)}if(shownMove&&sq===shownMove.to)el.classList.add('last-to');if(shownMove&&sq===shownMove.from)el.classList.add('last-from');if(r===7){const coord=document.createElement('span');coord.className='coord-file';coord.textContent=sq[0];el.appendChild(coord)}if(c===0){const coord=document.createElement('span');coord.className='coord-rank';coord.textContent=sq[1];el.appendChild(coord)}const shown=cursor>0?sfResults[cursor-1]:null;const lastMove=cursor>0?history[cursor-1]:null;if(shown&&lastMove&&lastMove.to===sq){const badge=document.createElement('span');const badgeMap={'أفضل نقلة':['★','best'],'جيدة':['!','good'],'غير دقيقة':['?!','inaccuracy'],'خطأ':['?','mistake'],'خطأ فادح':['??','blunder']};const spec=badgeMap[shown.label]||['•','good'];badge.className='move-badge '+spec[1];badge.textContent=spec[0];badge.title=shown.label+' — '+shown.loss+' cp';badge.setAttribute('aria-label','تقييم النقلة: '+shown.label);el.appendChild(badge)}el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
  }
  document.getElementById('current').textContent=cursor?((Math.ceil(cursor/2))+((cursor%2)?'...':' .')+' '+history[cursor-1].san):'بداية المباراة';
+ const currentReview=cursor>0?sfResults[cursor-1]:null;
+ document.getElementById('evalCurrent').textContent=currentReview?(currentReview.loss+' cp خسارة تقديرية'):'—';
+ document.getElementById('depthCurrent').textContent=sfResults.length?'10':'10 (لم يبدأ التحليل)';
+ document.getElementById('bestMove').textContent=currentReview?currentReview.best:'—';
+ document.getElementById('moveClass').textContent=currentReview?currentReview.label:'—';
  document.getElementById('moves').textContent=history.length?formatMoves(history):'لم يتم تحميل مباراة بعد.';
  document.getElementById('prev').disabled=cursor===0;document.getElementById('start').disabled=cursor===0;
  document.getElementById('next').disabled=cursor===history.length;document.getElementById('end').disabled=cursor===history.length;
@@ -101,6 +108,8 @@ function loadPgn(text){
  const candidate=new Chess();const ok=candidate.load_pgn(text.trim());
  if(!ok){statusEl.textContent='لم أتمكن من قراءة النص. تأكد من نسخ PGN كاملًا.';return false}
  const headers=candidate.header();
+ document.getElementById('whitePlayer').textContent=headers&&headers.White?headers.White:'—';
+ document.getElementById('blackPlayer').textContent=headers&&headers.Black?headers.Black:'—';
  const startFen=headers&&headers.FEN?headers.FEN:null;
  if(startFen){if(!game.load(startFen)){statusEl.textContent='تعذّر تحميل وضعية البداية المحددة في PGN.';return false}}else game.reset();
  history=candidate.history({verbose:true});
