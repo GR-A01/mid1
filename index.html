@@ -111,76 +111,66 @@ const ENGINE_BASE='https://unpkg.com/stockfish@19.0.1/bin/';
 function engineStatus(t){document.getElementById('engineStatus').textContent=t}
 function setProgress(done,total){document.getElementById('progressBar').style.width=(total?Math.round(done/total*100):0)+'%'}
 function bootStockfish(){
- return new Promise((resolve,reject)=>{
+ return new Promise(async(resolve,reject)=>{
   if(sfReady&&sfWorker){resolve();return}
+  let settled=false,timeout=null,workerUrl=null;
   try{
-   const jsUrl=ENGINE_BASE+'stockfish-19-lite-single.js';
-   const wasmUrls=[
-    ENGINE_BASE+'stockfish-19-lite-single.wasm',
-    'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-lite-single.wasm'
+   engineStatus('جارٍ تنزيل محرك Stockfish المتوافق مع المتصفح...');
+   const sources=[
+    'https://cdn.jsdelivr.net/npm/stockfish@19.0.1/bin/stockfish-19-asm.js',
+    'https://unpkg.com/stockfish@19.0.1/bin/stockfish-19-asm.js'
    ];
-   // Download WASM explicitly before importing the engine. This avoids resolving
-   // a relative .wasm URL against the temporary Blob worker URL.
-   const workerSource=`
-    const pending=[];
-    let engineLoaded=false,engineHandler=null;
-    const queueMessage=e=>{if(!engineLoaded)pending.push(e.data);else if(engineHandler)engineHandler.call(self,e)};
-    self.onmessage=queueMessage;
-    (async()=>{
-     let binary=null,lastError=null;
-     for(const url of ${JSON.stringify(wasmUrls)}){
-      try{
-       const response=await fetch(url,{mode:'cors',cache:'force-cache'});
-       if(!response.ok)throw new Error('HTTP '+response.status);
-       binary=await response.arrayBuffer();
-       if(!binary.byteLength)throw new Error('ملف WASM فارغ');
-       break;
-      }catch(error){lastError=error}
-     }
-     if(!binary)throw new Error('تعذّر تنزيل WASM من مصادر المحرك: '+(lastError?.message||'NetworkError'));
-     self.Module={
-      wasmBinary:binary,
-      locateFile:(path)=>path.endsWith('.wasm')?${JSON.stringify(wasmUrls[0])}:path
-     };
-     importScripts(${JSON.stringify(jsUrl)});
-     const stockfishHandler=self.onmessage;
-     if(typeof stockfishHandler!=='function'||stockfishHandler===queueMessage)throw new Error('لم يتم تهيئة عامل Stockfish');
-     engineHandler=stockfishHandler;
-     self.onmessage=queueMessage;
-     engineLoaded=true;
-     for(const data of pending)engineHandler.call(self,{data});
-    })().catch(error=>self.postMessage('ENGINE_LOAD_ERROR '+(error?.message||String(error))));
-   `;
-   const workerBlob=new Blob([workerSource],{type:'text/javascript'});
-   const workerUrl=URL.createObjectURL(workerBlob);
+   let source=null,lastError=null;
+   for(const url of sources){
+    try{
+     const response=await fetch(url,{mode:'cors',cache:'no-store'});
+     if(!response.ok)throw new Error('HTTP '+response.status);
+     source=await response.text();
+     if(!source||source.length<100000)throw new Error('ملف المحرك الذي تم تنزيله غير مكتمل');
+     break;
+    }catch(error){lastError=error}
+   }
+   if(!source)throw new Error('تعذّر تنزيل ملف محرك Stockfish: '+(lastError?.message||'NetworkError'));
+   // Stockfish's browser build is itself a Worker entry point. Fetch its source
+   // and launch that source as a Blob Worker; do not import it into a wrapper.
+   workerUrl=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
    sfWorker=new Worker(workerUrl);
-   let settled=false;
-   const timeout=setTimeout(()=>{
-    if(!settled){settled=true;reject(new Error('انتهت مهلة تحميل المحرك. لم يصل رد من Stockfish.'))}
+   let sawUci=false;
+   timeout=setTimeout(()=>{
+    if(!settled){settled=true;reject(new Error('انتهت مهلة تهيئة Stockfish. تحقق من اتصال الإنترنت ثم أعد المحاولة.'))}
    },90000);
    sfWorker.onmessage=e=>{
     const line=String(e.data||'').trim();
-    if(line.startsWith('ENGINE_LOAD_ERROR ')){
-     if(!settled){settled=true;clearTimeout(timeout);reject(new Error(line.slice(18)))}
-     return;
+    if(line==='uciok'){
+     sawUci=true;
+     sfWorker.postMessage('isready');
+    }else if(line==='readyok'){
+     sfReady=true;
+     if(!settled){settled=true;clearTimeout(timeout);resolve()}
     }
-    if(line==='uciok'){sfWorker.postMessage('isready')}
-    else if(line==='readyok'){sfReady=true;if(!settled){settled=true;clearTimeout(timeout);resolve()}}
     if(sfCurrent&&line.startsWith('info ')){
      const m=line.match(/\\bscore (cp|mate) (-?\\d+)/);
      if(m){let v=Number(m[2]);if(m[1]==='mate')v=v>0?100000-Math.min(999,Math.abs(v))*100:-100000+Math.min(999,Math.abs(v))*100;sfCurrent.score=v}
      const pv=line.match(/\\bpv (\\S+)/);if(pv)sfCurrent.pv=pv[1];
     }
     if(sfCurrent&&line.startsWith('bestmove ')){
-     sfCurrent.bestmove=line.split(/\\s+/)[1];const done=sfCurrent.resolve;sfCurrent=null;done();
+     sfCurrent.bestmove=line.split(/\\s+/)[1];
+     const done=sfCurrent.resolve;sfCurrent=null;done();
     }
    };
    sfWorker.onerror=ev=>{
-    const detail=ev&&ev.message?ev.message:'تعذّر تحميل ملف المحرك أو WASM';
+    const detail=ev&&ev.message?ev.message:'فشل تشغيل ملف المحرك';
     if(!settled){settled=true;clearTimeout(timeout);reject(new Error('تعذّر تشغيل Stockfish: '+detail))}
    };
+   // The worker starts its UCI loop on creation; send the handshake.
    sfWorker.postMessage('uci');
-  }catch(err){reject(err)}
+  }catch(err){
+   if(timeout)clearTimeout(timeout);
+   if(workerUrl)URL.revokeObjectURL(workerUrl);
+   if(sfWorker){sfWorker.terminate();sfWorker=null}
+   sfReady=false;
+   reject(err);
+  }
  });
 }
 function uciSearch(fen,depth){
