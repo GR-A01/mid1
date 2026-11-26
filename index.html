@@ -13,8 +13,8 @@ main{width:min(1120px,100%);margin:24px auto;padding:0 16px;display:grid;grid-te
 .panel{background:linear-gradient(160deg,#19273a,#121d2d);border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 14px 35px #0002}
 .board-wrap{width:min(100%,620px);margin:auto;padding:7px;background:#26364b;border-radius:13px;box-shadow:0 8px 22px #0003}
 .board{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));aspect-ratio:1;overflow:hidden;border-radius:8px}
-.square{appearance:none;border:0;border-radius:0;margin:0;padding:0;min-width:0;min-height:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:"Arial Unicode MS",system-ui,sans-serif;font-size:clamp(22px,6.3vw,54px);line-height:1;color:#172333;touch-action:manipulation}
-.square.light{background:var(--light)}.square.dark{background:var(--dark)}.square.selected{box-shadow:inset 0 0 0 4px var(--gold);background-image:linear-gradient(#e7bd6540,#e7bd6540)}
+.square{appearance:none;position:relative;border:0;border-radius:0;margin:0;padding:0;min-width:0;min-height:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:"Arial Unicode MS",system-ui,sans-serif;font-size:clamp(22px,6.3vw,54px);line-height:1;color:#172333;touch-action:manipulation}
+.square.light{background:var(--light)}.square.dark{background:var(--dark)}.move-badge{position:absolute;z-index:3;top:2px;right:2px;min-width:clamp(17px,3.5vw,25px);height:clamp(17px,3.5vw,25px);padding:0 3px;border:1.5px solid #fff;border-radius:50%;display:grid;place-items:center;font:900 clamp(9px,2vw,13px)/1 system-ui,sans-serif;box-shadow:0 2px 5px #0008;text-shadow:0 1px 1px #0005;pointer-events:none}.move-badge.best{background:#168b55;color:#fff}.move-badge.good{background:#58a94e;color:#fff}.move-badge.inaccuracy{background:#e4b83e;color:#172235}.move-badge.mistake{background:#e98232;color:#fff}.move-badge.blunder{background:#d83c45;color:#fff}.square.selected{box-shadow:inset 0 0 0 4px var(--gold);background-image:linear-gradient(#e7bd6540,#e7bd6540)}
 .square:focus-visible{outline:3px solid #f5d78e;outline-offset:-3px}
 .board-tools{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:14px}
 button,.file-button{font:inherit;cursor:pointer;border:1px solid #40536d;background:#26374e;color:var(--text);border-radius:11px;padding:10px 14px;min-height:43px}
@@ -83,7 +83,7 @@ function render(){
  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
   const sq=String.fromCharCode(97+c)+(8-r),p=b[r][c],el=document.createElement('button');
   el.type='button';el.className='square '+((r+c)%2?'dark':'light')+(selected===sq?' selected':'');
-  el.textContent=p?glyph[p.color+p.type]:'';el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
+  el.textContent=p?glyph[p.color+p.type]:'';const shown=cursor>0?sfResults[cursor-1]:null;const lastMove=cursor>0?history[cursor-1]:null;if(shown&&lastMove&&lastMove.to===sq){const badge=document.createElement('span');const badgeMap={'أفضل نقلة':['★','best'],'جيدة':['!','good'],'غير دقيقة':['?!','inaccuracy'],'خطأ':['?','mistake'],'خطأ فادح':['??','blunder']};const spec=badgeMap[shown.label]||['•','good'];badge.className='move-badge '+spec[1];badge.textContent=spec[0];badge.title=shown.label+' — '+shown.loss+' cp';badge.setAttribute('aria-label','تقييم النقلة: '+shown.label);el.appendChild(badge)}el.setAttribute('aria-label',sq);el.onclick=()=>tap(sq);board.append(el);
  }
  document.getElementById('current').textContent=cursor?((Math.ceil(cursor/2))+((cursor%2)?'...':' .')+' '+history[cursor-1].san):'بداية المباراة';
  document.getElementById('moves').textContent=history.length?formatMoves(history):'لم يتم تحميل مباراة بعد.';
@@ -92,7 +92,7 @@ function render(){
 }
 function formatMoves(h){let s='';for(let i=0;i<h.length;i++){if(i%2===0)s+=(Math.floor(i/2)+1)+'. ';s+=h[i].san+' ';if(i%2===1)s+='\n'}return s.trim()}
 function tap(sq){
- if(selected){const m=game.move({from:selected,to:sq,promotion:'q'});selected=null;if(m){history=game.history({verbose:true});cursor=history.length;render();statusEl.textContent='تم تنفيذ النقلة '+m.san;return}}
+ if(selected){const m=game.move({from:selected,to:sq,promotion:'q'});selected=null;if(m){history=game.history({verbose:true});cursor=history.length;sfResults=[];render();statusEl.textContent='تم تنفيذ النقلة '+m.san+'؛ أعد التحليل لتحديث العلامات.';return}}
  const piece=game.get(sq);selected=piece?sq:null;render();
 }
 function go(n){game.reset();for(let i=0;i<n;i++)game.move(history[i]);cursor=n;selected=null;render()}
@@ -100,7 +100,7 @@ document.getElementById('start').onclick=()=>go(0);document.getElementById('prev
 function loadPgn(text){
  const candidate=new Chess();const ok=candidate.load_pgn(text.trim());
  if(!ok){statusEl.textContent='لم أتمكن من قراءة النص. تأكد من نسخ PGN كاملًا.';return false}
- game.load(candidate.fen());history=candidate.history({verbose:true});cursor=history.length;selected=null;render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
+ game.load(candidate.fen());history=candidate.history({verbose:true});cursor=history.length;selected=null;sfResults=[];render();statusEl.textContent='تم تحميل المباراة بنجاح — '+history.length+' نقلة.';return true;
 }
 document.getElementById('loadPgn').onclick=()=>{const t=document.getElementById('pgnText').value;if(!t.trim()){statusEl.textContent='الصق نص PGN أولًا في المربع.';return}loadPgn(t)};
 document.getElementById('clearPgn').onclick=()=>{document.getElementById('pgnText').value='';statusEl.textContent='تم مسح مربع PGN.'};
@@ -240,7 +240,7 @@ async function analyzeGame(){
    const label=classifyLoss(loss);counts[label]++;
    rows.push({n:i+1,side:mover==='w'?'الأبيض':'الأسود',played:history[i].san,best:sanFromUci(fens[i],evals[i].bestmove),loss:Math.round(loss),label});
   }
-  const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
+  sfResults=rows;render();const summary=Object.entries(counts).filter(x=>x[1]).map(x=>x[0]+': '+x[1]).join(' · ');
   document.getElementById('analysisResult').innerHTML='<div><strong>اكتمل التحليل</strong><br>'+summary+'</div>'+rows.map(r=>'<div class="eval-row"><span>#'+r.n+' '+r.side+': <b>'+r.played+'</b><br><small class="muted">الأفضل: '+r.best+' · خسارة تقديرية '+r.loss+' cp</small></span><span class="tag">'+r.label+'</span></div>').join('');
   engineStatus('اكتمل التحليل بنجاح — Stockfish 19 Lite، عمق 10.');
  }catch(err){engineStatus(err.message||'حدث خطأ أثناء التحليل.');document.getElementById('analysisResult').textContent='لم يكتمل التحليل. يمكنك إعادة المحاولة بعد التأكد من الاتصال بالإنترنت.'}
